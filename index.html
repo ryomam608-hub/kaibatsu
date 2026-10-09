@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="いまの海抜">
+<meta name="theme-color" content="#0f2a3d">
+<title>いまの海抜</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;700;900&family=IBM+Plex+Mono:wght@500;700&display=swap">
+<style>
+/* 1カラム。巨大な海抜の数字＋帯で危険度、下に根拠（位置精度・データ源）と次の行動 */
+:root{
+  --bg:#f3f6f8; --panel:#ffffff; --fg:#0f2a3d; --muted:#5b7182; --line:#d6e0e7;
+  --accent:#0b6e99;
+  --red:#c62828; --orange:#e06c00; --yellow:#b58900; --green:#2e7d4f;
+  --f-body:"Zen Kaku Gothic New","Hiragino Sans","Hiragino Kaku Gothic ProN",sans-serif;
+  --f-num:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0b1a25; --panel:#12273a; --fg:#e8f0f5; --muted:#93a9b8; --line:#23405a;
+  --accent:#4cb3e0; --red:#ff6b6b; --orange:#ff9f43; --yellow:#f2c94c; --green:#5fd38d; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0b1a25; --panel:#12273a; --fg:#e8f0f5; --muted:#93a9b8; --line:#23405a;
+  --accent:#4cb3e0; --red:#ff6b6b; --orange:#ff9f43; --yellow:#f2c94c; --green:#5fd38d; color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:16px;line-height:1.6;
+  padding:env(safe-area-inset-top,0px) 16px env(safe-area-inset-bottom,0px)}
+main{max-width:480px;margin:0 auto;padding-block:20px 32px;display:grid;gap:16px}
+header{display:flex;justify-content:space-between;align-items:baseline}
+h1{font-size:1rem;font-weight:700;margin:0;letter-spacing:.08em}
+.time{font-family:var(--f-num);font-size:.8rem;color:var(--muted)}
+.hero{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:24px 20px 20px;display:grid;gap:6px}
+.label{font-size:.8rem;color:var(--muted);letter-spacing:.1em}
+.num{font-family:var(--f-num);font-weight:700;font-size:clamp(3.6rem,20vw,5.6rem);line-height:1;font-variant-numeric:tabular-nums;display:flex;align-items:baseline;gap:8px}
+.num small{font-size:1.6rem;color:var(--muted)}
+.band{margin-top:10px;border-radius:10px;padding:12px 14px;color:#fff;font-weight:700;display:grid;gap:2px}
+.band span{font-weight:400;font-size:.9rem;opacity:.95}
+.band.red{background:var(--red)} .band.orange{background:var(--orange)}
+.band.yellow{background:var(--yellow);color:#1c1600} .band.green{background:var(--green)}
+.band.idle{background:transparent;color:var(--muted);border:1px dashed var(--line)}
+.scale{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:8px;font-family:var(--f-num);font-size:.7rem;color:var(--muted)}
+.scale div{border-top:4px solid;padding-top:4px}
+.scale .s1{border-color:var(--red)} .scale .s2{border-color:var(--orange)} .scale .s3{border-color:var(--yellow)} .scale .s4{border-color:var(--green)}
+.scale .on{color:var(--fg);font-weight:700}
+button{font:inherit;font-weight:700;font-size:1.05rem;width:100%;padding:16px;border-radius:12px;border:0;background:var(--accent);color:#fff;cursor:pointer}
+button:focus-visible,a:focus-visible{outline:3px solid var(--fg);outline-offset:2px}
+button:disabled{opacity:.6}
+dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:.9rem}
+dt{color:var(--muted)} dd{margin:0;font-family:var(--f-num);font-variant-numeric:tabular-nums;min-width:0;overflow-wrap:anywhere}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;display:grid;gap:10px}
+.card h2{font-size:.9rem;margin:0}
+a{color:var(--accent);font-weight:700}
+.note{font-size:.8rem;color:var(--muted);margin:0}
+.err{color:var(--red);font-size:.9rem;margin:0}
+@media (prefers-reduced-motion:no-preference){.hero.loading .num{animation:p 1s ease-in-out infinite alternate}}
+@keyframes p{from{opacity:1}to{opacity:.35}}
+</style>
+</head>
+<body>
+<main>
+  <header><h1>いまの海抜</h1><span class="time" id="time">--:--</span></header>
+
+  <section class="hero" id="hero">
+    <div class="label">現在地の標高（海抜）</div>
+    <div class="num"><span id="elev">--.-</span><small>m</small></div>
+    <div class="band idle" id="band">下のボタンで測定します<span>位置情報の利用を許可してください</span></div>
+    <div class="scale" aria-hidden="true">
+      <div class="s1" id="s1">〜5m</div><div class="s2" id="s2">5〜10m</div><div class="s3" id="s3">10〜20m</div><div class="s4" id="s4">20m〜</div>
+    </div>
+  </section>
+
+  <button id="go" type="button">現在地の海抜を測る</button>
+  <p class="err" id="err" hidden></p>
+
+  <section class="card">
+    <h2>この数字の根拠</h2>
+    <dl>
+      <dt>位置</dt><dd id="pos">—</dd>
+      <dt>位置の誤差</dt><dd id="acc">—</dd>
+      <dt>標高データ</dt><dd id="src">—</dd>
+    </dl>
+    <p class="note">標高は国土地理院の標高APIから取得した地面の高さです（GPSの高度ではありません）。建物の上階にいる場合、その分は含まれません。</p>
+  </section>
+
+  <section class="card">
+    <h2>次にすること</h2>
+    <a id="haz" href="https://disaportal.gsi.go.jp/" target="_blank" rel="noopener">この場所のハザードマップを開く →</a>
+    <p class="note">色の帯は目安です。想定される津波の高さは地域ごとに違うため、必ずハザードマップと自治体の避難情報で確認してください。大きな揺れを感じたら、数字を待たずに高い場所へ。</p>
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const API = "https://cyberjapandata2.gsi.go.jp/general/dem/scripts/getelevation.php";
+
+const BANDS = [
+  {max:5,  cls:"red",    s:"s1", t:"海抜5m未満", d:"津波で浸水しやすい高さ。すぐ高台へ移動できる経路を確認"},
+  {max:10, cls:"orange", s:"s2", t:"海抜5〜10m", d:"大きな津波では浸水のおそれ。避難先を把握しておく"},
+  {max:20, cls:"yellow", s:"s3", t:"海抜10〜20m", d:"比較的高いが、最大クラスの津波では注意"},
+  {max:Infinity, cls:"green", s:"s4", t:"海抜20m以上", d:"多くの想定より高い。地域の想定は必ず確認"}
+];
+
+function render(r){
+  $("elev").textContent = r.elev.toFixed(1);
+  const b = BANDS.find(x => r.elev < x.max);
+  const band = $("band");
+  band.className = "band " + b.cls;
+  band.innerHTML = "";
+  band.append(b.t);
+  const sp = document.createElement("span"); sp.textContent = b.d; band.append(sp);
+  ["s1","s2","s3","s4"].forEach(s => $(s).classList.toggle("on", s === b.s));
+  $("pos").textContent = r.lat.toFixed(5) + ", " + r.lon.toFixed(5);
+  $("acc").textContent = "±" + Math.round(r.acc) + " m" + (r.acc > 100 ? "（大きめ。屋外で測り直すと改善）" : "");
+  $("src").textContent = r.src || "—";
+  $("time").textContent = new Date(r.at).toLocaleString("ja-JP",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}) + " 測定";
+  $("haz").href = "https://disaportal.gsi.go.jp/maps/?ll=" + r.lat.toFixed(6) + "," + r.lon.toFixed(6) + "&z=16&base=pale&vs=c1j0l0u0";
+}
+
+function fail(msg){
+  $("err").textContent = msg; $("err").hidden = false;
+  $("hero").classList.remove("loading"); $("go").disabled = false;
+}
+
+function measure(){
+  $("err").hidden = true;
+  if(!("geolocation" in navigator)) return fail("この端末では位置情報が使えません。");
+  $("go").disabled = true; $("hero").classList.add("loading");
+  navigator.geolocation.getCurrentPosition(async p => {
+    const {latitude:lat, longitude:lon, accuracy:acc} = p.coords;
+    try{
+      const res = await fetch(`${API}?lon=${lon}&lat=${lat}&outtype=JSON`);
+      const j = await res.json();
+      const elev = parseFloat(j.elevation);
+      if(isNaN(elev)) return fail("この場所の標高データがありません（海上・国外など）。");
+      const r = {elev, lat, lon, acc, src:j.hsrc, at:Date.now()};
+      render(r);
+      try{ localStorage.setItem("lastElev", JSON.stringify(r)); }catch(e){}
+      $("hero").classList.remove("loading"); $("go").disabled = false;
+      $("go").textContent = "もう一度測る";
+    }catch(e){ fail("標高データを取得できませんでした。電波の良い場所で再度お試しください。"); }
+  }, e => {
+    fail(e.code === 1
+      ? "位置情報が許可されていません。設定 → プライバシー → 位置情報サービス → Safari で「使用中のみ」にしてください。"
+      : "位置を取得できませんでした。屋外や窓際で再度お試しください。");
+  }, {enableHighAccuracy:true, timeout:20000, maximumAge:0});
+}
+
+$("go").addEventListener("click", measure);
+try{ const last = JSON.parse(localStorage.getItem("lastElev")); if(last) render(last); }catch(e){}
+</script>
+</body>
+</html>
