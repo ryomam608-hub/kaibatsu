@@ -4,152 +4,391 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="いまの海抜">
+<meta name="apple-mobile-web-app-title" content="いまここ防災">
 <meta name="theme-color" content="#0f2a3d">
-<title>いまの海抜</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;700;900&family=IBM+Plex+Mono:wght@500;700&display=swap">
+<title>いまここハザード</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <style>
-/* 1カラム。巨大な海抜の数字＋帯で危険度、下に根拠（位置精度・データ源）と次の行動 */
+/* 上半分=現在地中心の地図（必要なハザードだけ重ねる）、下半分=足元の判定結果。Webフォントは読み込まない（軽さ優先） */
 :root{
-  --bg:#f3f6f8; --panel:#ffffff; --fg:#0f2a3d; --muted:#5b7182; --line:#d6e0e7;
-  --accent:#0b6e99;
-  --red:#c62828; --orange:#e06c00; --yellow:#b58900; --green:#2e7d4f;
-  --f-body:"Zen Kaku Gothic New","Hiragino Sans","Hiragino Kaku Gothic ProN",sans-serif;
-  --f-num:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  --bg:#eef3f6; --panel:#ffffff; --fg:#0f2a3d; --muted:#5b7182; --line:#d6e0e7;
+  --accent:#0b6e99; --scrim:rgba(238,243,246,.86);
+  --red:#c62828; --orange:#d26300; --yellow:#9a7400; --green:#2e7d4f;
+  --font:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
 }
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+@media (prefers-color-scheme:dark){:root{
   --bg:#0b1a25; --panel:#12273a; --fg:#e8f0f5; --muted:#93a9b8; --line:#23405a;
-  --accent:#4cb3e0; --red:#ff6b6b; --orange:#ff9f43; --yellow:#f2c94c; --green:#5fd38d; color-scheme:dark}}
-:root[data-theme="dark"]{
-  --bg:#0b1a25; --panel:#12273a; --fg:#e8f0f5; --muted:#93a9b8; --line:#23405a;
-  --accent:#4cb3e0; --red:#ff6b6b; --orange:#ff9f43; --yellow:#f2c94c; --green:#5fd38d; color-scheme:dark}
+  --accent:#4cb3e0; --scrim:rgba(11,26,37,.86);
+  --red:#ff6b6b; --orange:#ff9f43; --yellow:#f2c94c; --green:#5fd38d; color-scheme:dark}}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html,body{margin:0}
-body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:16px;line-height:1.6;
-  padding:env(safe-area-inset-top,0px) 16px env(safe-area-inset-bottom,0px)}
-main{max-width:480px;margin:0 auto;padding-block:20px 32px;display:grid;gap:16px}
-header{display:flex;justify-content:space-between;align-items:baseline}
-h1{font-size:1rem;font-weight:700;margin:0;letter-spacing:.08em}
-.time{font-family:var(--f-num);font-size:.8rem;color:var(--muted)}
-.hero{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:24px 20px 20px;display:grid;gap:6px}
-.label{font-size:.8rem;color:var(--muted);letter-spacing:.1em}
-.num{font-family:var(--f-num);font-weight:700;font-size:clamp(3.6rem,20vw,5.6rem);line-height:1;font-variant-numeric:tabular-nums;display:flex;align-items:baseline;gap:8px}
-.num small{font-size:1.6rem;color:var(--muted)}
-.band{margin-top:10px;border-radius:10px;padding:12px 14px;color:#fff;font-weight:700;display:grid;gap:2px}
-.band span{font-weight:400;font-size:.9rem;opacity:.95}
-.band.red{background:var(--red)} .band.orange{background:var(--orange)}
-.band.yellow{background:var(--yellow);color:#1c1600} .band.green{background:var(--green)}
-.band.idle{background:transparent;color:var(--muted);border:1px dashed var(--line)}
-.scale{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:8px;font-family:var(--f-num);font-size:.7rem;color:var(--muted)}
-.scale div{border-top:4px solid;padding-top:4px}
-.scale .s1{border-color:var(--red)} .scale .s2{border-color:var(--orange)} .scale .s3{border-color:var(--yellow)} .scale .s4{border-color:var(--green)}
-.scale .on{color:var(--fg);font-weight:700}
-button{font:inherit;font-weight:700;font-size:1.05rem;width:100%;padding:16px;border-radius:12px;border:0;background:var(--accent);color:#fff;cursor:pointer}
-button:focus-visible,a:focus-visible{outline:3px solid var(--fg);outline-offset:2px}
-button:disabled{opacity:.6}
-dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:.9rem}
-dt{color:var(--muted)} dd{margin:0;font-family:var(--f-num);font-variant-numeric:tabular-nums;min-width:0;overflow-wrap:anywhere}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;display:grid;gap:10px}
-.card h2{font-size:.9rem;margin:0}
+body{background:var(--bg);color:var(--fg);font:15px/1.55 var(--font);-webkit-text-size-adjust:100%}
+button{font:inherit;cursor:pointer}
+button:focus-visible,a:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+
+.mapwrap{position:relative;height:52svh;min-height:280px}
+#map{position:absolute;inset:0;background:var(--bg)}
+@media (prefers-color-scheme:dark){.leaflet-base-pane{filter:invert(1) hue-rotate(180deg) brightness(.85) contrast(.9)}}
+.chips{position:absolute;z-index:1000;top:calc(env(safe-area-inset-top,0px) + 10px);left:12px;right:12px;display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:999px;padding:6px 13px;font-size:13px;font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.chip[aria-pressed="true"]{background:var(--fg);color:var(--panel);border-color:var(--fg)}
+#recenter{position:absolute;z-index:1000;right:12px;bottom:26px;border:0;border-radius:999px;padding:9px 14px;background:var(--accent);color:#fff;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.25)}
+.start{position:absolute;inset:0;z-index:1100;display:grid;place-items:center;background:var(--scrim);padding:24px}
+.start div{display:grid;gap:10px;text-align:center;max-width:300px}
+.start p{margin:0;color:var(--muted);font-size:13px}
+.primary{border:0;border-radius:12px;padding:15px 20px;background:var(--accent);color:#fff;font-weight:700;font-size:16px}
+
+.sheet{max-width:560px;margin:0 auto;padding:14px 16px calc(env(safe-area-inset-bottom,0px) + 28px);display:grid;gap:14px}
+.status{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex:none}
+.dot.live{background:var(--green)}
+@media (prefers-reduced-motion:no-preference){.dot.live{animation:pulse 1.6s ease-in-out infinite}}
+@keyframes pulse{50%{opacity:.3}}
+.status.warn{color:var(--red)}
+
+.elev{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 10px}
+.elev .lbl{font-size:13px;color:var(--muted)}
+.elev b{font-size:44px;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.elev .u{font-size:18px;color:var(--muted)}
+.pill{font-size:12px;font-weight:700;border-radius:999px;padding:3px 10px;color:#fff;align-self:center}
+.pill.red{background:var(--red)}.pill.orange{background:var(--orange)}.pill.yellow{background:var(--yellow);color:#1c1600}.pill.green{background:var(--green)}
+
+.haz{list-style:none;margin:0;padding:0;border:1px solid var(--line);border-radius:12px;background:var(--panel);overflow:hidden}
+.haz li{display:grid;grid-template-columns:16px 3em 1fr;align-items:center;gap:10px;padding:11px 14px;border-top:1px solid var(--line)}
+.haz li:first-child{border-top:0}
+.sw{width:16px;height:16px;border-radius:4px;border:1px solid var(--line);background:transparent}
+.haz .n{font-weight:700}
+.haz .v{color:var(--muted);min-width:0}
+.haz li.hit .v{color:var(--fg);font-weight:700}
+
+.evac{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:12px 14px;display:grid;gap:4px}
+.evac .lbl{font-size:12px;color:var(--muted)}
+.evac .nm{font-weight:700;overflow-wrap:anywhere}
+.evac .meta{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.warnline{font-size:12px;color:var(--red)}
+.links{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:14px}
 a{color:var(--accent);font-weight:700}
-.note{font-size:.8rem;color:var(--muted);margin:0}
-.err{color:var(--red);font-size:.9rem;margin:0}
-@media (prefers-reduced-motion:no-preference){.hero.loading .num{animation:p 1s ease-in-out infinite alternate}}
-@keyframes p{from{opacity:1}to{opacity:.35}}
+
+details{font-size:13px;color:var(--muted)}
+summary{cursor:pointer;font-weight:700}
+.legend{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 12px;margin-top:8px}
+.legend span{display:flex;align-items:center;gap:6px}
+.legend i{width:14px;height:14px;border-radius:3px;flex:none;border:1px solid var(--line)}
+.note{font-size:12px;color:var(--muted);margin:0}
+.leaflet-container{font:12px var(--font)}
 </style>
 </head>
 <body>
-<main>
-  <header><h1>いまの海抜</h1><span class="time" id="time">--:--</span></header>
-
-  <section class="hero" id="hero">
-    <div class="label">現在地の標高（海抜）</div>
-    <div class="num"><span id="elev">--.-</span><small>m</small></div>
-    <div class="band idle" id="band">下のボタンで測定します<span>位置情報の利用を許可してください</span></div>
-    <div class="scale" aria-hidden="true">
-      <div class="s1" id="s1">〜5m</div><div class="s2" id="s2">5〜10m</div><div class="s3" id="s3">10〜20m</div><div class="s4" id="s4">20m〜</div>
+<div class="mapwrap">
+  <div id="map"></div>
+  <div class="chips" id="chips">
+    <button class="chip" type="button" data-k="tsunami" aria-pressed="true">津波</button>
+    <button class="chip" type="button" data-k="flood" aria-pressed="false">洪水</button>
+    <button class="chip" type="button" data-k="tide" aria-pressed="false">高潮</button>
+    <button class="chip" type="button" data-k="dosha" aria-pressed="false">土砂</button>
+    <button class="chip" type="button" data-k="evac" aria-pressed="true">避難場所</button>
+  </div>
+  <button id="recenter" type="button" hidden>現在地へ戻る</button>
+  <div class="start" id="start">
+    <div>
+      <button class="primary" id="go" type="button">現在地の追跡を始める</button>
+      <p>動くたびに、足元の浸水想定と海抜を更新します</p>
     </div>
-  </section>
+  </div>
+</div>
 
-  <button id="go" type="button">現在地の海抜を測る</button>
-  <p class="err" id="err" hidden></p>
+<main class="sheet">
+  <div class="status" id="status"><span class="dot" id="dot"></span><span id="statusText">位置情報はまだ使っていません</span></div>
 
-  <section class="card">
-    <h2>この数字の根拠</h2>
-    <dl>
-      <dt>位置</dt><dd id="pos">—</dd>
-      <dt>位置の誤差</dt><dd id="acc">—</dd>
-      <dt>標高データ</dt><dd id="src">—</dd>
-    </dl>
-    <p class="note">標高は国土地理院の標高APIから取得した地面の高さです（GPSの高度ではありません）。建物の上階にいる場合、その分は含まれません。</p>
-  </section>
+  <div class="elev">
+    <span class="lbl">海抜</span><b id="elev">--.-</b><span class="u">m</span><span class="pill" id="band" hidden></span>
+  </div>
 
-  <section class="card">
-    <h2>次にすること</h2>
-    <a id="haz" href="https://disaportal.gsi.go.jp/" target="_blank" rel="noopener">この場所のハザードマップを開く →</a>
-    <p class="note">色の帯は目安です。想定される津波の高さは地域ごとに違うため、必ずハザードマップと自治体の避難情報で確認してください。大きな揺れを感じたら、数字を待たずに高い場所へ。</p>
-  </section>
+  <ul class="haz" id="haz">
+    <li data-k="tsunami"><span class="sw"></span><span class="n">津波</span><span class="v">—</span></li>
+    <li data-k="flood"><span class="sw"></span><span class="n">洪水</span><span class="v">—</span></li>
+    <li data-k="tide"><span class="sw"></span><span class="n">高潮</span><span class="v">—</span></li>
+    <li data-k="dosha"><span class="sw"></span><span class="n">土砂</span><span class="v">—</span></li>
+  </ul>
+
+  <div class="evac" id="evac">
+    <span class="lbl">最寄りの津波避難場所（国土地理院に登録分・直線距離）</span>
+    <span class="nm" id="evacName">—</span>
+    <span class="meta" id="evacMeta"></span>
+    <span class="warnline" id="evacWarn" hidden>近くの市町村のデータが未登録の可能性があります（横須賀市・鎌倉市などは未登録）。自治体の避難場所マップも確認してください。</span>
+    <div class="links"><a id="evacRoute" href="#" target="_blank" rel="noopener" hidden>徒歩ルートを開く →</a></div>
+  </div>
+
+  <div class="links">
+    <a id="portal" href="https://disaportal.gsi.go.jp/" target="_blank" rel="noopener">公式ハザードマップでこの地点を開く →</a>
+  </div>
+
+  <details>
+    <summary>色の見方</summary>
+    <div class="legend" id="legend"></div>
+  </details>
+
+  <p class="note">判定は国土地理院「重ねるハザードマップ」の想定最大規模データを、いま立っている1点で読み取ったものです。「想定区域外」にはデータが整備されていない地域も含まれるため、安全の保証ではありません。境界付近では位置の誤差の分だけ結果がずれます。大きな揺れを感じたら、表示を待たずに高い場所へ。</p>
 </main>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
+"use strict";
 const $ = id => document.getElementById(id);
-const API = "https://cyberjapandata2.gsi.go.jp/general/dem/scripts/getelevation.php";
+const HZ = "https://disaportaldata.gsi.go.jp/raster/";
+const ELEV_API = "https://cyberjapandata2.gsi.go.jp/general/dem/scripts/getelevation.php";
+const EVAC = "https://cyberjapandata.gsi.go.jp/xyz/skhb05/10/"; // 指定緊急避難場所（津波）
+const SRC = '出典：<a href="https://disaportal.gsi.go.jp/" target="_blank" rel="noopener">ハザードマップポータルサイト</a>・<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">国土地理院</a>';
 
-const BANDS = [
-  {max:5,  cls:"red",    s:"s1", t:"海抜5m未満", d:"津波で浸水しやすい高さ。すぐ高台へ移動できる経路を確認"},
-  {max:10, cls:"orange", s:"s2", t:"海抜5〜10m", d:"大きな津波では浸水のおそれ。避難先を把握しておく"},
-  {max:20, cls:"yellow", s:"s3", t:"海抜10〜20m", d:"比較的高いが、最大クラスの津波では注意"},
-  {max:Infinity, cls:"green", s:"s4", t:"海抜20m以上", d:"多くの想定より高い。地域の想定は必ず確認"}
+const LAYERS = {
+  tsunami:{paths:["04_tsunami_newlegend_data"], kind:"depth"},
+  flood:  {paths:["01_flood_l2_shinsuishin_data"], kind:"depth"},
+  tide:   {paths:["03_hightide_l2_shinsuishin_data"], kind:"depth"},
+  dosha:  {paths:["05_dosekiryukeikaikuiki","05_kyukeishakeikaikuiki","05_jisuberikeikaikuiki"], sub:["土石流","急傾斜地","地すべり"], kind:"sediment"}
+};
+// 浸水深の凡例（津波・洪水・高潮で共通の配色）
+const DEPTH = [
+  [255,255,179,"0.3m未満"],[247,245,169,"0.5m未満"],[248,225,166,"0.5〜1m"],[255,216,192,"1〜3m"],
+  [255,183,183,"3〜5m"],[255,145,145,"5〜10m"],[242,133,201,"10〜20m"],[220,122,220,"20m以上"]
 ];
+const SED = [[250,230,0,"警戒区域"],[250,40,0,"特別警戒区域"]];
 
-function render(r){
-  $("elev").textContent = r.elev.toFixed(1);
-  const b = BANDS.find(x => r.elev < x.max);
-  const band = $("band");
-  band.className = "band " + b.cls;
-  band.innerHTML = "";
-  band.append(b.t);
-  const sp = document.createElement("span"); sp.textContent = b.d; band.append(sp);
-  ["s1","s2","s3","s4"].forEach(s => $(s).classList.toggle("on", s === b.s));
-  $("pos").textContent = r.lat.toFixed(5) + ", " + r.lon.toFixed(5);
-  $("acc").textContent = "±" + Math.round(r.acc) + " m" + (r.acc > 100 ? "（大きめ。屋外で測り直すと改善）" : "");
-  $("src").textContent = r.src || "—";
-  $("time").textContent = new Date(r.at).toLocaleString("ja-JP",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}) + " 測定";
-  $("haz").href = "https://disaportal.gsi.go.jp/maps/?ll=" + r.lat.toFixed(6) + "," + r.lon.toFixed(6) + "&z=16&base=pale&vs=c1j0l0u0";
+/* ---------- 地図 ---------- */
+let saved = null;
+try{ saved = JSON.parse(localStorage.getItem("lastPos")); }catch(e){}
+const map = L.map("map",{zoomControl:false, preferCanvas:true, attributionControl:true})
+  .setView(saved ? [saved.lat, saved.lon] : [36.2,138.2], saved ? 15 : 5);
+map.attributionControl.setPrefix(false);
+map.createPane("base").style.zIndex = 150; // 背景地図はハザード（tilePane=200）の下
+L.tileLayer("https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png",
+  {pane:"base", maxZoom:18, maxNativeZoom:18, attribution:SRC}).addTo(map);
+
+const overlays = {};
+for (const [k, def] of Object.entries(LAYERS)) {
+  overlays[k] = L.layerGroup(def.paths.map(p => L.tileLayer(HZ + p + "/{z}/{x}/{y}.png",
+    {opacity:.7, maxZoom:18, maxNativeZoom:17, minZoom:2})));
+}
+const evacLayer = L.layerGroup();
+const chipState = {tsunami:true, flood:false, tide:false, dosha:false, evac:true};
+try{ Object.assign(chipState, JSON.parse(localStorage.getItem("chips")) || {}); }catch(e){}
+function applyChips(){
+  document.querySelectorAll(".chip").forEach(b => {
+    const k = b.dataset.k, on = !!chipState[k];
+    b.setAttribute("aria-pressed", on);
+    const lyr = k === "evac" ? evacLayer : overlays[k];
+    if (on && !map.hasLayer(lyr)) lyr.addTo(map);
+    if (!on && map.hasLayer(lyr)) map.removeLayer(lyr);
+  });
+}
+$("chips").addEventListener("click", e => {
+  const b = e.target.closest(".chip"); if (!b) return;
+  chipState[b.dataset.k] = !chipState[b.dataset.k];
+  try{ localStorage.setItem("chips", JSON.stringify(chipState)); }catch(e){}
+  applyChips();
+});
+applyChips();
+
+const me = L.circleMarker([0,0],{radius:8, color:"#fff", weight:3, fillColor:"#0b6e99", fillOpacity:1});
+const accCircle = L.circle([0,0],{radius:1, color:"#0b6e99", weight:1, fillOpacity:.1, interactive:false});
+let follow = true;
+map.on("dragstart", () => { if (here) { follow = false; $("recenter").hidden = false; } });
+$("recenter").addEventListener("click", () => {
+  follow = true; $("recenter").hidden = true;
+  if (here) map.setView([here.lat, here.lon], Math.max(map.getZoom(), 16));
+});
+
+/* ---------- 1点の色を読む ---------- */
+function tileOf(lat, lon, z){
+  const n = 2 ** z, r = lat * Math.PI / 180;
+  const x = (lon + 180) / 360 * n;
+  const y = (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * n;
+  const tx = Math.floor(x), ty = Math.floor(y);
+  return {tx, ty, px:Math.floor((x - tx) * 256), py:Math.floor((y - ty) * 256)};
+}
+const tiles = new Map();
+function getTile(url){
+  if (!tiles.has(url)) {
+    const p = fetch(url).then(async r => {
+      if (r.status === 404) return null;           // タイルが無い＝その範囲に想定区域が無い
+      if (!r.ok) throw new Error("http " + r.status);
+      return createImageBitmap(await r.blob());
+    });
+    p.catch(() => tiles.delete(url));
+    tiles.set(url, p);
+    if (tiles.size > 80) tiles.delete(tiles.keys().next().value);
+  }
+  return tiles.get(url);
+}
+const cv = document.createElement("canvas"); cv.width = cv.height = 1;
+const cx = cv.getContext("2d", {willReadFrequently:true});
+async function pixelAt(path, lat, lon){
+  const t = tileOf(lat, lon, 17);
+  const bmp = await getTile(`${HZ}${path}/17/${t.tx}/${t.ty}.png`);
+  if (!bmp) return null;
+  cx.clearRect(0,0,1,1); cx.drawImage(bmp, -t.px, -t.py);
+  const d = cx.getImageData(0,0,1,1).data;
+  return d[3] < 128 ? null : [d[0], d[1], d[2]];
+}
+function nearest(rgb, pal){
+  let best = null, bd = Infinity;
+  for (const p of pal) { const d = (p[0]-rgb[0])**2 + (p[1]-rgb[1])**2 + (p[2]-rgb[2])**2; if (d < bd) { bd = d; best = p; } }
+  return bd < 600 ? best : null;
+}
+const rgbCss = c => `rgb(${c[0]},${c[1]},${c[2]})`;
+
+function setRow(k, text, color){
+  const li = document.querySelector(`.haz li[data-k="${k}"]`);
+  li.querySelector(".v").textContent = text;
+  li.querySelector(".sw").style.background = color ? rgbCss(color) : "transparent";
+  li.classList.toggle("hit", !!color);
 }
 
-function fail(msg){
-  $("err").textContent = msg; $("err").hidden = false;
-  $("hero").classList.remove("loading"); $("go").disabled = false;
+async function checkHazards(lat, lon){
+  await Promise.all(Object.entries(LAYERS).map(async ([k, def]) => {
+    try {
+      if (def.kind === "depth") {
+        const c = await pixelAt(def.paths[0], lat, lon);
+        if (!c) return setRow(k, "想定区域外");
+        const m = nearest(c, DEPTH);
+        setRow(k, m ? `浸水 ${m[3]} の想定` : "浸水想定区域内", c);
+      } else {
+        const res = await Promise.all(def.paths.map(p => pixelAt(p, lat, lon)));
+        const hits = []; let worst = null;
+        res.forEach((c, i) => {
+          if (!c) return;
+          const m = nearest(c, SED);
+          hits.push(def.sub[i] + (m ? " " + m[3] : " 区域内"));
+          if (!worst || (m && m[3] === "特別警戒区域")) worst = c;
+        });
+        setRow(k, hits.length ? hits.join("・") : "警戒区域外", worst);
+      }
+    } catch (e) { setRow(k, "取得できませんでした"); }
+  }));
 }
 
-function measure(){
-  $("err").hidden = true;
-  if(!("geolocation" in navigator)) return fail("この端末では位置情報が使えません。");
-  $("go").disabled = true; $("hero").classList.add("loading");
-  navigator.geolocation.getCurrentPosition(async p => {
-    const {latitude:lat, longitude:lon, accuracy:acc} = p.coords;
-    try{
-      const res = await fetch(`${API}?lon=${lon}&lat=${lat}&outtype=JSON`);
-      const j = await res.json();
-      const elev = parseFloat(j.elevation);
-      if(isNaN(elev)) return fail("この場所の標高データがありません（海上・国外など）。");
-      const r = {elev, lat, lon, acc, src:j.hsrc, at:Date.now()};
-      render(r);
-      try{ localStorage.setItem("lastElev", JSON.stringify(r)); }catch(e){}
-      $("hero").classList.remove("loading"); $("go").disabled = false;
-      $("go").textContent = "もう一度測る";
-    }catch(e){ fail("標高データを取得できませんでした。電波の良い場所で再度お試しください。"); }
-  }, e => {
-    fail(e.code === 1
-      ? "位置情報が許可されていません。設定 → プライバシー → 位置情報サービス → Safari で「使用中のみ」にしてください。"
-      : "位置を取得できませんでした。屋外や窓際で再度お試しください。");
-  }, {enableHighAccuracy:true, timeout:20000, maximumAge:0});
+/* ---------- 海抜 ---------- */
+const BANDS = [[5,"red","5m未満"],[10,"orange","5〜10m"],[20,"yellow","10〜20m"],[Infinity,"green","20m以上"]];
+async function checkElev(lat, lon){
+  try {
+    const j = await (await fetch(`${ELEV_API}?lon=${lon.toFixed(6)}&lat=${lat.toFixed(6)}&outtype=JSON`)).json();
+    const e = parseFloat(j.elevation);
+    if (isNaN(e)) { $("elev").textContent = "--.-"; $("band").hidden = true; return; }
+    $("elev").textContent = e.toFixed(1);
+    const b = BANDS.find(x => e < x[0]);
+    $("band").className = "pill " + b[1]; $("band").textContent = b[2]; $("band").hidden = false;
+  } catch (e) { /* 次の更新で再取得 */ }
 }
 
-$("go").addEventListener("click", measure);
-try{ const last = JSON.parse(localStorage.getItem("lastElev")); if(last) render(last); }catch(e){}
+/* ---------- 最寄りの津波避難場所 ---------- */
+const evacTiles = new Map();
+function loadEvacTile(x, y){
+  const key = x + "/" + y;
+  if (!evacTiles.has(key)) {
+    const p = fetch(`${EVAC}${key}.geojson`).then(r => r.ok ? r.json() : {features:[]}).then(g => {
+      const pts = g.features.filter(f => f.geometry && f.geometry.type === "Point").map(f => ({
+        lat:f.geometry.coordinates[1], lon:f.geometry.coordinates[0], name:f.properties.name || "避難場所"}));
+      pts.forEach(s => L.circleMarker([s.lat, s.lon], {radius:5, color:"#fff", weight:1.5, fillColor:"#2e7d4f", fillOpacity:1})
+        .bindPopup(s.name).addTo(evacLayer));
+      return pts;
+    });
+    p.catch(() => evacTiles.delete(key));
+    evacTiles.set(key, p);
+  }
+  return evacTiles.get(key);
+}
+function dist(a, b){
+  const R = 6371000, r = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * r, dLon = (b.lon - a.lon) * r;
+  const h = Math.sin(dLat/2)**2 + Math.cos(a.lat*r) * Math.cos(b.lat*r) * Math.sin(dLon/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+function dirName(a, b){
+  const r = Math.PI / 180, y = Math.sin((b.lon-a.lon)*r) * Math.cos(b.lat*r);
+  const x = Math.cos(a.lat*r)*Math.sin(b.lat*r) - Math.sin(a.lat*r)*Math.cos(b.lat*r)*Math.cos((b.lon-a.lon)*r);
+  const deg = (Math.atan2(y, x) / r + 360) % 360;
+  return ["北","北東","東","南東","南","南西","西","北西"][Math.round(deg / 45) % 8];
+}
+let nearMark = null;
+async function checkEvac(lat, lon){
+  const t = tileOf(lat, lon, 10), jobs = [];
+  for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) jobs.push(loadEvacTile(t.tx + dx, t.ty + dy).catch(() => []));
+  const all = (await Promise.all(jobs)).flat();
+  if (!all.length) { $("evacName").textContent = "近くに登録された津波避難場所が見つかりません"; $("evacMeta").textContent = ""; $("evacRoute").hidden = true; $("evacWarn").hidden = false; return; }
+  const p = {lat, lon};
+  let best = all[0], bd = dist(p, best);
+  for (const s of all) { const d = dist(p, s); if (d < bd) { bd = d; best = s; } }
+  $("evacName").textContent = best.name;
+  $("evacMeta").textContent = `${dirName(p, best)}へ ${bd < 1000 ? Math.round(bd) + " m" : (bd/1000).toFixed(1) + " km"}`;
+  $("evacRoute").href = `https://maps.apple.com/?daddr=${best.lat},${best.lon}&dirflg=w`;
+  $("evacRoute").hidden = false;
+  $("evacWarn").hidden = bd <= 1000;
+  if (nearMark) evacLayer.removeLayer(nearMark);
+  nearMark = L.circleMarker([best.lat, best.lon], {radius:9, color:"#fff", weight:2.5, fillColor:"#2e7d4f", fillOpacity:1})
+    .bindPopup("最寄り：" + best.name).addTo(evacLayer);
+}
+
+/* ---------- 位置の追跡 ---------- */
+let here = null, lastChecked = null, busy = false, pending = null, watchId = null, firstFix = true;
+function status(text, mode){
+  $("statusText").textContent = text;
+  $("dot").className = "dot" + (mode === "live" ? " live" : "");
+  $("status").classList.toggle("warn", mode === "warn");
+}
+async function refresh(pos){
+  if (busy) { pending = pos; return; }
+  busy = true; lastChecked = pos;
+  $("portal").href = `https://disaportal.gsi.go.jp/maps/?ll=${pos.lat.toFixed(6)},${pos.lon.toFixed(6)}&z=16&base=pale&vs=c1j0l0u0`;
+  await Promise.all([checkHazards(pos.lat, pos.lon), checkElev(pos.lat, pos.lon), checkEvac(pos.lat, pos.lon)]);
+  busy = false;
+  if (pending) { const p = pending; pending = null; if (dist(p, lastChecked) > 15) refresh(p); }
+}
+function onPos(p){
+  const {latitude:lat, longitude:lon, accuracy:acc} = p.coords;
+  here = {lat, lon, acc};
+  me.setLatLng([lat, lon]); accCircle.setLatLng([lat, lon]).setRadius(acc);
+  if (!map.hasLayer(me)) { accCircle.addTo(map); me.addTo(map); }
+  if (follow) map.setView([lat, lon], firstFix ? 16 : Math.max(map.getZoom(), 15), {animate:!firstFix});
+  firstFix = false;
+  const t = new Date().toLocaleTimeString("ja-JP", {hour:"2-digit", minute:"2-digit", second:"2-digit"});
+  status(acc > 100 ? `追跡中 ±${Math.round(acc)}m（誤差大・屋外で精度が上がります） ${t}` : `追跡中 ±${Math.round(acc)}m ${t}`, "live");
+  try{ localStorage.setItem("lastPos", JSON.stringify({lat, lon})); }catch(e){}
+  if (!lastChecked || dist(here, lastChecked) > 15) refresh(here);
+}
+function onErr(e){
+  if (e.code === 1) {
+    stop();
+    status("位置情報が許可されていません。設定 → プライバシーとセキュリティ → 位置情報サービス → Safari の Web サイト を「使用中のみ」に", "warn");
+    $("start").hidden = false;
+  } else {
+    status("位置を取得できません。屋外や窓際で試してください", "warn");
+  }
+}
+function start(){
+  if (!("geolocation" in navigator)) return status("この端末では位置情報が使えません", "warn");
+  $("start").hidden = true;
+  status("現在地を取得中…");
+  try{ localStorage.setItem("tracking", "1"); }catch(e){}
+  if (watchId === null) watchId = navigator.geolocation.watchPosition(onPos, onErr, {enableHighAccuracy:true, maximumAge:5000, timeout:30000});
+}
+function stop(){
+  if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+  watchId = null;
+}
+$("go").addEventListener("click", start);
+// 画面を閉じている間は追跡を止めて電池を守る
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) stop();
+  else if ($("start").hidden) start();
+});
+let wasTracking = false;
+try{ wasTracking = localStorage.getItem("tracking") === "1"; }catch(e){}
+if (wasTracking) start();
+
+/* ---------- 凡例 ---------- */
+$("legend").innerHTML = DEPTH.map(d => `<span><i style="background:${rgbCss(d)}"></i>浸水 ${d[3]}</span>`).join("")
+  + SED.map(d => `<span><i style="background:${rgbCss(d)}"></i>土砂 ${d[3]}</span>`).join("")
+  + `<span><i style="background:#2e7d4f;border-radius:50%"></i>津波避難場所</span>`;
 </script>
 </body>
 </html>
