@@ -9,7 +9,7 @@
 <title>いまここハザード</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <style>
-/* 上半分=現在地中心の地図（必要なハザードだけ重ねる）、下半分=足元の判定結果。Webフォントは読み込まない（軽さ優先） */
+/* 上半分=現在地中心の地図（必要なハザードだけ重ねる）、下半分=足元の判定を「水と土砂／地盤／逃げる先」の目的別に表示。Webフォントは読み込まない（軽さ優先） */
 :root{
   --bg:#eef3f6; --panel:#ffffff; --fg:#0f2a3d; --muted:#5b7182; --line:#d6e0e7;
   --accent:#0b6e99; --scrim:rgba(238,243,246,.86);
@@ -27,11 +27,12 @@ body{background:var(--bg);color:var(--fg);font:15px/1.55 var(--font);-webkit-tex
 button{font:inherit;cursor:pointer}
 button:focus-visible,a:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 
-.mapwrap{position:relative;height:52svh;min-height:280px}
+.mapwrap{position:relative;height:50svh;min-height:280px}
 #map{position:absolute;inset:0;background:var(--bg)}
 @media (prefers-color-scheme:dark){.leaflet-base-pane{filter:invert(1) hue-rotate(180deg) brightness(.85) contrast(.9)}}
-.chips{position:absolute;z-index:1000;top:calc(env(safe-area-inset-top,0px) + 10px);left:12px;right:12px;display:flex;flex-wrap:wrap;gap:6px}
-.chip{border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:999px;padding:6px 13px;font-size:13px;font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.chips{position:absolute;z-index:1000;top:calc(env(safe-area-inset-top,0px) + 10px);left:0;right:0;padding:0 12px 4px;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:999px;padding:6px 13px;font-size:13px;font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,.15)}
 .chip[aria-pressed="true"]{background:var(--fg);color:var(--panel);border-color:var(--fg)}
 #recenter{position:absolute;z-index:1000;right:12px;bottom:26px;border:0;border-radius:999px;padding:9px 14px;background:var(--accent);color:#fff;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.25)}
 .start{position:absolute;inset:0;z-index:1100;display:grid;place-items:center;background:var(--scrim);padding:24px}
@@ -39,7 +40,7 @@ button:focus-visible,a:focus-visible{outline:3px solid var(--accent);outline-off
 .start p{margin:0;color:var(--muted);font-size:13px}
 .primary{border:0;border-radius:12px;padding:15px 20px;background:var(--accent);color:#fff;font-weight:700;font-size:16px}
 
-.sheet{max-width:560px;margin:0 auto;padding:14px 16px calc(env(safe-area-inset-bottom,0px) + 28px);display:grid;gap:14px}
+.sheet{max-width:560px;margin:0 auto;padding:14px 16px calc(env(safe-area-inset-bottom,0px) + 28px);display:grid;gap:12px}
 .status{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex:none}
 .dot.live{background:var(--green)}
@@ -54,18 +55,22 @@ button:focus-visible,a:focus-visible{outline:3px solid var(--accent);outline-off
 .pill{font-size:12px;font-weight:700;border-radius:999px;padding:3px 10px;color:#fff;align-self:center}
 .pill.red{background:var(--red)}.pill.orange{background:var(--orange)}.pill.yellow{background:var(--yellow);color:#1c1600}.pill.green{background:var(--green)}
 
+h2{font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em;margin:6px 0 -4px}
 .haz{list-style:none;margin:0;padding:0;border:1px solid var(--line);border-radius:12px;background:var(--panel);overflow:hidden}
-.haz li{display:grid;grid-template-columns:16px 3em 1fr;align-items:center;gap:10px;padding:11px 14px;border-top:1px solid var(--line)}
+.haz li{display:grid;grid-template-columns:16px 4.6em 1fr;align-items:center;gap:10px;padding:11px 14px;border-top:1px solid var(--line)}
 .haz li:first-child{border-top:0}
 .sw{width:16px;height:16px;border-radius:4px;border:1px solid var(--line);background:transparent}
-.haz .n{font-weight:700}
-.haz .v{color:var(--muted);min-width:0}
+.haz .n{font-weight:700;white-space:nowrap}
+.haz .v{color:var(--muted);min-width:0;overflow-wrap:anywhere}
 .haz li.hit .v{color:var(--fg);font-weight:700}
+.haz .sub{grid-column:2 / -1;font-size:12px;color:var(--muted);margin-top:-6px}
 
-.evac{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:12px 14px;display:grid;gap:4px}
+.evac{border:1px solid var(--line);border-radius:12px;background:var(--panel);overflow:hidden}
+.evac > div{display:grid;gap:3px;padding:12px 14px;border-top:1px solid var(--line)}
+.evac > div:first-child{border-top:0}
 .evac .lbl{font-size:12px;color:var(--muted)}
 .evac .nm{font-weight:700;overflow-wrap:anywhere}
-.evac .meta{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.evac .meta{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
 .warnline{font-size:12px;color:var(--red)}
 .links{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:14px}
 a{color:var(--accent);font-weight:700}
@@ -73,7 +78,8 @@ a{color:var(--accent);font-weight:700}
 details{font-size:13px;color:var(--muted)}
 summary{cursor:pointer;font-weight:700}
 .legend{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 12px;margin-top:8px}
-.legend span{display:flex;align-items:center;gap:6px}
+.legend b{grid-column:1 / -1;margin-top:6px;color:var(--fg);font-size:12px}
+.legend span{display:flex;align-items:center;gap:6px;min-width:0}
 .legend i{width:14px;height:14px;border-radius:3px;flex:none;border:1px solid var(--line)}
 .note{font-size:12px;color:var(--muted);margin:0}
 .leaflet-container{font:12px var(--font)}
@@ -87,13 +93,15 @@ summary{cursor:pointer;font-weight:700}
     <button class="chip" type="button" data-k="flood" aria-pressed="false">洪水</button>
     <button class="chip" type="button" data-k="tide" aria-pressed="false">高潮</button>
     <button class="chip" type="button" data-k="dosha" aria-pressed="false">土砂</button>
-    <button class="chip" type="button" data-k="evac" aria-pressed="true">避難場所</button>
+    <button class="chip" type="button" data-k="liq" aria-pressed="false">液状化</button>
+    <button class="chip" type="button" data-k="fill" aria-pressed="false">盛土</button>
+    <button class="chip" type="button" data-k="evac" aria-pressed="true">避難先</button>
   </div>
   <button id="recenter" type="button" hidden>現在地へ戻る</button>
   <div class="start" id="start">
     <div>
       <button class="primary" id="go" type="button">現在地の追跡を始める</button>
-      <p>動くたびに、足元の浸水想定と海抜を更新します</p>
+      <p>動くたびに、足元の浸水想定・地盤・海抜を更新します</p>
     </div>
   </div>
 </div>
@@ -105,6 +113,7 @@ summary{cursor:pointer;font-weight:700}
     <span class="lbl">海抜</span><b id="elev">--.-</b><span class="u">m</span><span class="pill" id="band" hidden></span>
   </div>
 
+  <h2>水と土砂</h2>
   <ul class="haz" id="haz">
     <li data-k="tsunami"><span class="sw"></span><span class="n">津波</span><span class="v">—</span></li>
     <li data-k="flood"><span class="sw"></span><span class="n">洪水</span><span class="v">—</span></li>
@@ -112,13 +121,29 @@ summary{cursor:pointer;font-weight:700}
     <li data-k="dosha"><span class="sw"></span><span class="n">土砂</span><span class="v">—</span></li>
   </ul>
 
-  <div class="evac" id="evac">
-    <span class="lbl">最寄りの津波避難場所（国土地理院に登録分・直線距離）</span>
-    <span class="nm" id="evacName">—</span>
-    <span class="meta" id="evacMeta"></span>
-    <span class="warnline" id="evacWarn" hidden>近くの市町村のデータが未登録の可能性があります（横須賀市・鎌倉市などは未登録）。自治体の避難場所マップも確認してください。</span>
-    <div class="links"><a id="evacRoute" href="#" target="_blank" rel="noopener" hidden>徒歩ルートを開く →</a></div>
-  </div>
+  <h2>地盤（地震のとき）</h2>
+  <ul class="haz" id="ground">
+    <li data-k="shake"><span class="sw"></span><span class="n">揺れやすさ</span><span class="v">—</span><span class="sub" id="landform" hidden></span></li>
+    <li data-k="liq"><span class="sw"></span><span class="n">液状化</span><span class="v">—</span></li>
+    <li data-k="fill"><span class="sw"></span><span class="n">盛土</span><span class="v">—</span></li>
+  </ul>
+
+  <h2>逃げる先</h2>
+  <section class="evac">
+    <div>
+      <span class="lbl">津波のとき（浸水想定区域の外へ・直線距離）</span>
+      <span class="nm" id="tsuName">—</span>
+      <span class="meta" id="tsuMeta"></span>
+      <div class="links"><a id="tsuRoute" href="#" target="_blank" rel="noopener" hidden>徒歩ルートを開く →</a></div>
+    </div>
+    <div>
+      <span class="lbl">地震のとき（最寄りの避難所・直線距離）</span>
+      <span class="nm" id="eqName">—</span>
+      <span class="meta" id="eqMeta"></span>
+      <span class="warnline" id="eqWarn" hidden>近くの市町村のデータが未登録の可能性があります。自治体の避難所マップも確認してください。</span>
+      <div class="links"><a id="eqRoute" href="#" target="_blank" rel="noopener" hidden>徒歩ルートを開く →</a></div>
+    </div>
+  </section>
 
   <div class="links">
     <a id="portal" href="https://disaportal.gsi.go.jp/" target="_blank" rel="noopener">公式ハザードマップでこの地点を開く →</a>
@@ -129,7 +154,7 @@ summary{cursor:pointer;font-weight:700}
     <div class="legend" id="legend"></div>
   </details>
 
-  <p class="note">判定は国土地理院「重ねるハザードマップ」の想定最大規模データを、いま立っている1点で読み取ったものです。「想定区域外」にはデータが整備されていない地域も含まれるため、安全の保証ではありません。境界付近では位置の誤差の分だけ結果がずれます。大きな揺れを感じたら、表示を待たずに高い場所へ。</p>
+  <p class="note">水と土砂は国土地理院「重ねるハザードマップ」の想定最大規模データ、揺れやすさは防災科学技術研究所J-SHISの表層地盤データ、液状化・盛土は国土地理院のデータを、いま立っている1点で読み取ったものです。地盤は約250m四方の代表値で、個々の敷地の地盤を示すものではありません。「区域外」「該当なし」にはデータが整備されていない地域も含まれるため、安全の保証ではありません。大きな揺れを感じたら、表示を待たずに高い場所へ。</p>
 </main>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -137,9 +162,13 @@ summary{cursor:pointer;font-weight:700}
 "use strict";
 const $ = id => document.getElementById(id);
 const HZ = "https://disaportaldata.gsi.go.jp/raster/";
+const LIQ_URL = "https://disaportal.gsi.go.jp/raster/08_03_ekijoka_zenkoku/";      // 地形区分に基づく液状化の発生傾向図（〜z15）
+const FILL_URL = "https://disaportal.gsi.go.jp/data/raster/09_daikibomorido/";    // 大規模盛土造成地（〜z16）
+const DEM_URL = "https://cyberjapandata.gsi.go.jp/xyz/dem_png/";                   // 標高タイル（海はデータなし）
 const ELEV_API = "https://cyberjapandata2.gsi.go.jp/general/dem/scripts/getelevation.php";
-const EVAC = "https://cyberjapandata.gsi.go.jp/xyz/skhb05/10/"; // 指定緊急避難場所（津波）
-const SRC = '出典：<a href="https://disaportal.gsi.go.jp/" target="_blank" rel="noopener">ハザードマップポータルサイト</a>・<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">国土地理院</a>';
+const JSHIS_API = "https://www.j-shis.bosai.go.jp/map/api/sstrct/V3/meshinfo.geojson";
+const SKHB = "https://cyberjapandata.gsi.go.jp/xyz/";                              // 指定緊急避難場所 skhb04=地震 skhb05=津波
+const SRC = '出典：<a href="https://disaportal.gsi.go.jp/" target="_blank" rel="noopener">ハザードマップポータル</a>・<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">国土地理院</a>・<a href="https://www.j-shis.bosai.go.jp/" target="_blank" rel="noopener">J-SHIS</a>・横須賀市';
 
 const LAYERS = {
   tsunami:{paths:["04_tsunami_newlegend_data"], kind:"depth"},
@@ -153,6 +182,18 @@ const DEPTH = [
   [255,183,183,"3〜5m"],[255,145,145,"5〜10m"],[242,133,201,"10〜20m"],[220,122,220,"20m以上"]
 ];
 const SED = [[250,230,0,"警戒区域"],[250,40,0,"特別警戒区域"]];
+// 液状化の発生傾向（5段階）
+const LIQ = [
+  [200,0,255,"強い","埋立地や旧河道など"],[255,40,0,"やや強い","干拓地や自然堤防など"],
+  [255,170,0,"中程度","緩やかな谷底低地や扇状地など"],[255,245,0,"やや弱い","急な谷底低地や扇状地など"],
+  [200,200,203,"弱い","山地や丘陵など"]
+];
+const FILL = [[155,255,155,"谷埋め型"],[155,155,255,"腹付け型"],[255,155,155,"型の区分なし"]];
+// 揺れやすさ（J-SHISの地盤増幅率ランク）
+const SHAKE = [
+  [1.0,"A","揺れにくい",[110,180,130]],[1.4,"B","やや揺れにくい",[180,215,150]],
+  [1.8,"C","やや揺れやすい",[250,215,90]],[2.3,"D","揺れやすい",[250,150,60]],[Infinity,"E","とても揺れやすい",[225,65,55]]
+];
 
 /* ---------- 地図 ---------- */
 let saved = null;
@@ -169,14 +210,17 @@ for (const [k, def] of Object.entries(LAYERS)) {
   overlays[k] = L.layerGroup(def.paths.map(p => L.tileLayer(HZ + p + "/{z}/{x}/{y}.png",
     {opacity:.7, maxZoom:18, maxNativeZoom:17, minZoom:2})));
 }
-const evacLayer = L.layerGroup();
-const chipState = {tsunami:true, flood:false, tide:false, dosha:false, evac:true};
+overlays.liq = L.tileLayer(LIQ_URL + "{z}/{x}/{y}.png", {opacity:.55, maxZoom:18, maxNativeZoom:15, minZoom:5});
+overlays.fill = L.tileLayer(FILL_URL + "{z}/{x}/{y}.png", {opacity:.6, maxZoom:18, maxNativeZoom:16, minZoom:2});
+overlays.evac = L.layerGroup();
+const routeLayer = L.layerGroup().addTo(map);
+
+const chipState = {tsunami:true, flood:false, tide:false, dosha:false, liq:false, fill:false, evac:true};
 try{ Object.assign(chipState, JSON.parse(localStorage.getItem("chips")) || {}); }catch(e){}
 function applyChips(){
   document.querySelectorAll(".chip").forEach(b => {
-    const k = b.dataset.k, on = !!chipState[k];
+    const k = b.dataset.k, on = !!chipState[k], lyr = overlays[k];
     b.setAttribute("aria-pressed", on);
-    const lyr = k === "evac" ? evacLayer : overlays[k];
     if (on && !map.hasLayer(lyr)) lyr.addTo(map);
     if (!on && map.hasLayer(lyr)) map.removeLayer(lyr);
   });
@@ -198,7 +242,7 @@ $("recenter").addEventListener("click", () => {
   if (here) map.setView([here.lat, here.lon], Math.max(map.getZoom(), 16));
 });
 
-/* ---------- 1点の色を読む ---------- */
+/* ---------- タイルの色を読む ---------- */
 function tileOf(lat, lon, z){
   const n = 2 ** z, r = lat * Math.PI / 180;
   const x = (lon + 180) / 360 * n;
@@ -206,54 +250,78 @@ function tileOf(lat, lon, z){
   const tx = Math.floor(x), ty = Math.floor(y);
   return {tx, ty, px:Math.floor((x - tx) * 256), py:Math.floor((y - ty) * 256)};
 }
+function pixelToLatLon(gx, gy, z){
+  const n = 2 ** z * 256;
+  return {lon: gx / n * 360 - 180, lat: Math.atan(Math.sinh(Math.PI * (1 - 2 * gy / n))) * 180 / Math.PI};
+}
 const tiles = new Map();
 function getTile(url){
   if (!tiles.has(url)) {
     const p = fetch(url).then(async r => {
-      if (r.status === 404) return null;           // タイルが無い＝その範囲に想定区域が無い
+      if (r.status === 404) return null;           // タイルが無い＝その範囲にデータが無い
       if (!r.ok) throw new Error("http " + r.status);
       return createImageBitmap(await r.blob());
     });
     p.catch(() => tiles.delete(url));
     tiles.set(url, p);
-    if (tiles.size > 80) tiles.delete(tiles.keys().next().value);
+    if (tiles.size > 120) tiles.delete(tiles.keys().next().value);
   }
   return tiles.get(url);
 }
 const cv = document.createElement("canvas"); cv.width = cv.height = 1;
 const cx = cv.getContext("2d", {willReadFrequently:true});
-async function pixelAt(path, lat, lon){
-  const t = tileOf(lat, lon, 17);
-  const bmp = await getTile(`${HZ}${path}/17/${t.tx}/${t.ty}.png`);
+async function pixelAt(base, z, lat, lon){
+  const t = tileOf(lat, lon, z);
+  const bmp = await getTile(`${base}${z}/${t.tx}/${t.ty}.png`);
   if (!bmp) return null;
   cx.clearRect(0,0,1,1); cx.drawImage(bmp, -t.px, -t.py);
   const d = cx.getImageData(0,0,1,1).data;
   return d[3] < 128 ? null : [d[0], d[1], d[2]];
 }
+// タイル全体の画素（区域外探索用）
+const tileDataCache = new Map();
+const cvT = document.createElement("canvas"); cvT.width = cvT.height = 256;
+const cxT = cvT.getContext("2d", {willReadFrequently:true});
+function tileData(url){
+  if (!tileDataCache.has(url)) {
+    const p = getTile(url).then(bmp => {
+      if (!bmp) return null;
+      cxT.clearRect(0,0,256,256); cxT.drawImage(bmp, 0, 0);
+      return cxT.getImageData(0,0,256,256).data;
+    });
+    p.catch(() => tileDataCache.delete(url));
+    tileDataCache.set(url, p);
+    if (tileDataCache.size > 40) tileDataCache.delete(tileDataCache.keys().next().value);
+  }
+  return tileDataCache.get(url);
+}
 function nearest(rgb, pal){
   let best = null, bd = Infinity;
   for (const p of pal) { const d = (p[0]-rgb[0])**2 + (p[1]-rgb[1])**2 + (p[2]-rgb[2])**2; if (d < bd) { bd = d; best = p; } }
-  return bd < 600 ? best : null;
+  return bd < 900 ? best : null;
 }
 const rgbCss = c => `rgb(${c[0]},${c[1]},${c[2]})`;
 
-function setRow(k, text, color){
-  const li = document.querySelector(`.haz li[data-k="${k}"]`);
+function setRow(list, k, text, color){
+  const li = document.querySelector(`#${list} li[data-k="${k}"]`);
   li.querySelector(".v").textContent = text;
   li.querySelector(".sw").style.background = color ? rgbCss(color) : "transparent";
   li.classList.toggle("hit", !!color);
 }
 
+/* ---------- 水と土砂 ---------- */
+let inTsunami = false;
 async function checkHazards(lat, lon){
   await Promise.all(Object.entries(LAYERS).map(async ([k, def]) => {
     try {
       if (def.kind === "depth") {
-        const c = await pixelAt(def.paths[0], lat, lon);
-        if (!c) return setRow(k, "想定区域外");
+        const c = await pixelAt(HZ + def.paths[0] + "/", 17, lat, lon);
+        if (k === "tsunami") inTsunami = !!c;
+        if (!c) return setRow("haz", k, "想定区域外");
         const m = nearest(c, DEPTH);
-        setRow(k, m ? `浸水 ${m[3]} の想定` : "浸水想定区域内", c);
+        setRow("haz", k, m ? `浸水 ${m[3]} の想定` : "浸水想定区域内", c);
       } else {
-        const res = await Promise.all(def.paths.map(p => pixelAt(p, lat, lon)));
+        const res = await Promise.all(def.paths.map(p => pixelAt(HZ + p + "/", 17, lat, lon)));
         const hits = []; let worst = null;
         res.forEach((c, i) => {
           if (!c) return;
@@ -261,10 +329,43 @@ async function checkHazards(lat, lon){
           hits.push(def.sub[i] + (m ? " " + m[3] : " 区域内"));
           if (!worst || (m && m[3] === "特別警戒区域")) worst = c;
         });
-        setRow(k, hits.length ? hits.join("・") : "警戒区域外", worst);
+        setRow("haz", k, hits.length ? hits.join("・") : "警戒区域外", worst);
       }
-    } catch (e) { setRow(k, "取得できませんでした"); }
+    } catch (e) { setRow("haz", k, "取得できませんでした"); }
   }));
+}
+
+/* ---------- 地盤 ---------- */
+let lastShakeAt = null;
+async function checkShake(lat, lon){
+  if (lastShakeAt && dist(lastShakeAt, {lat, lon}) < 80) return;   // 250mメッシュなので小刻みには取り直さない
+  try {
+    const j = await (await fetch(`${JSHIS_API}?position=${lon.toFixed(6)},${lat.toFixed(6)}&epsg=4326`)).json();
+    const p = j.features && j.features[0] && j.features[0].properties;
+    const arv = p ? parseFloat(p.ARV) : NaN;
+    lastShakeAt = {lat, lon};
+    if (!p || isNaN(arv) || arv <= 0) { setRow("ground", "shake", "データなし"); $("landform").hidden = true; return; }
+    const s = SHAKE.find(x => arv < x[0]);
+    setRow("ground", "shake", `ランク${s[1]}・${s[2]}（約${arv.toFixed(1)}倍）`, s[3]);
+    const avs = parseFloat(p.AVS);
+    $("landform").textContent = `土地の成り立ち：${p.JNAME || "不明"}` + (isNaN(avs) ? "" : `／地盤の硬さ ${Math.round(avs)} m/s（小さいほど軟らかい）`);
+    $("landform").hidden = false;
+  } catch (e) { setRow("ground", "shake", "取得できませんでした"); }
+}
+async function checkGround(lat, lon){
+  await Promise.all([
+    checkShake(lat, lon),
+    pixelAt(LIQ_URL, 15, lat, lon).then(c => {
+      if (!c) return setRow("ground", "liq", "データなし");
+      const m = nearest(c, LIQ);
+      setRow("ground", "liq", m ? `発生傾向 ${m[3]}（${m[4]}）` : "傾向あり（凡例参照）", c);
+    }).catch(() => setRow("ground", "liq", "取得できませんでした")),
+    pixelAt(FILL_URL, 16, lat, lon).then(c => {
+      if (!c) return setRow("ground", "fill", "大規模盛土造成地ではない");
+      const m = nearest(c, FILL);
+      setRow("ground", "fill", `大規模盛土造成地（${m ? m[3] : "型不明"}）`, c);
+    }).catch(() => setRow("ground", "fill", "取得できませんでした"))
+  ]);
 }
 
 /* ---------- 海抜 ---------- */
@@ -280,23 +381,7 @@ async function checkElev(lat, lon){
   } catch (e) { /* 次の更新で再取得 */ }
 }
 
-/* ---------- 最寄りの津波避難場所 ---------- */
-const evacTiles = new Map();
-function loadEvacTile(x, y){
-  const key = x + "/" + y;
-  if (!evacTiles.has(key)) {
-    const p = fetch(`${EVAC}${key}.geojson`).then(r => r.ok ? r.json() : {features:[]}).then(g => {
-      const pts = g.features.filter(f => f.geometry && f.geometry.type === "Point").map(f => ({
-        lat:f.geometry.coordinates[1], lon:f.geometry.coordinates[0], name:f.properties.name || "避難場所"}));
-      pts.forEach(s => L.circleMarker([s.lat, s.lon], {radius:5, color:"#fff", weight:1.5, fillColor:"#2e7d4f", fillOpacity:1})
-        .bindPopup(s.name).addTo(evacLayer));
-      return pts;
-    });
-    p.catch(() => evacTiles.delete(key));
-    evacTiles.set(key, p);
-  }
-  return evacTiles.get(key);
-}
+/* ---------- 距離・方角 ---------- */
 function dist(a, b){
   const R = 6371000, r = Math.PI / 180;
   const dLat = (b.lat - a.lat) * r, dLon = (b.lon - a.lon) * r;
@@ -309,23 +394,121 @@ function dirName(a, b){
   const deg = (Math.atan2(y, x) / r + 360) % 360;
   return ["北","北東","東","南東","南","南西","西","北西"][Math.round(deg / 45) % 8];
 }
-let nearMark = null;
-async function checkEvac(lat, lon){
-  const t = tileOf(lat, lon, 10), jobs = [];
-  for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) jobs.push(loadEvacTile(t.tx + dx, t.ty + dy).catch(() => []));
-  const all = (await Promise.all(jobs)).flat();
-  if (!all.length) { $("evacName").textContent = "近くに登録された津波避難場所が見つかりません"; $("evacMeta").textContent = ""; $("evacRoute").hidden = true; $("evacWarn").hidden = false; return; }
+const fmtDist = d => d < 1000 ? Math.round(d / 10) * 10 + " m" : (d / 1000).toFixed(1) + " km";
+const walkUrl = p => `https://maps.apple.com/?daddr=${p.lat.toFixed(6)},${p.lon.toFixed(6)}&dirflg=w`;
+
+/* ---------- 避難場所データ（国土地理院の登録分＋横須賀市） ---------- */
+const shelterTiles = new Map();
+function loadShelterTile(layer, x, y, color){
+  const key = `${layer}/10/${x}/${y}`;
+  if (!shelterTiles.has(key)) {
+    const p = fetch(`${SKHB}${key}.geojson`).then(r => r.ok ? r.json() : {features:[]}).then(g => {
+      const pts = g.features.filter(f => f.geometry && f.geometry.type === "Point").map(f => ({
+        lat:f.geometry.coordinates[1], lon:f.geometry.coordinates[0], name:f.properties.name || "避難場所"}));
+      pts.forEach(s => L.circleMarker([s.lat, s.lon], {radius:4.5, color:"#fff", weight:1.5, fillColor:color, fillOpacity:1})
+        .bindPopup(s.name).addTo(overlays.evac));
+      return pts;
+    });
+    p.catch(() => shelterTiles.delete(key));
+    shelterTiles.set(key, p);
+  }
+  return shelterTiles.get(key);
+}
+// 現在地のタイル＋端から約3km以内にある隣のタイルだけ読む（通信量を抑える）
+function shelterTilesAround(layer, lat, lon, color){
+  const t = tileOf(lat, lon, 10), xs = [0], ys = [0];
+  if (t.px < 24) xs.push(-1); if (t.px > 231) xs.push(1);
+  if (t.py < 24) ys.push(-1); if (t.py > 231) ys.push(1);
+  const jobs = [];
+  for (const dx of xs) for (const dy of ys) jobs.push(loadShelterTile(layer, t.tx + dx, t.ty + dy, color).catch(() => []));
+  return Promise.all(jobs).then(a => a.flat());
+}
+let yokosuka = null;
+function loadYokosuka(){
+  if (!yokosuka) yokosuka = fetch("yokosuka_shelters.json").then(r => r.json()).then(a => {
+    const pts = a.map(([lat, lon, name]) => ({lat, lon, name}));
+    pts.forEach(s => L.circleMarker([s.lat, s.lon], {radius:4.5, color:"#fff", weight:1.5, fillColor:"#3b6fd6", fillOpacity:1})
+      .bindPopup(s.name + "（震災時避難所）").addTo(overlays.evac));
+    return pts;
+  }).catch(() => { yokosuka = null; return []; });
+  return yokosuka;
+}
+function closest(p, list){
+  let best = null, bd = Infinity;
+  for (const s of list) { const d = dist(p, s); if (d < bd) { bd = d; best = s; } }
+  return best ? {s:best, d:bd} : null;
+}
+
+/* ---------- 津波：浸水想定区域の外までの最短 ---------- */
+// 標高タイルで陸か海かを見分け、津波タイルで色が付いていない陸地のうち一番近い点を探す（z14で半径約2km）
+async function nearestOutsideTsunami(lat, lon){
+  const z = 14, c = tileOf(lat, lon, z);
+  const cgx = c.tx * 256 + c.px, cgy = c.ty * 256 + c.py;
+  const jobs = [];
+  for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+    const x = c.tx + dx, y = c.ty + dy;
+    jobs.push(Promise.all([
+      tileData(`${HZ}04_tsunami_newlegend_data/${z}/${x}/${y}.png`),
+      tileData(`${DEM_URL}${z}/${x}/${y}.png`)
+    ]).then(([ts, dem]) => ({x, y, ts, dem})));
+  }
+  const parts = await Promise.all(jobs);
+  let bd = Infinity, bx = 0, by = 0;
+  for (const {x, y, ts, dem} of parts) {
+    if (!dem) continue;
+    for (let py = 0; py < 256; py++) for (let px = 0; px < 256; px++) {
+      const i = (py * 256 + px) * 4;
+      if (dem[i] === 128 && dem[i+1] === 0 && dem[i+2] === 0) continue;   // 海（標高データなし）
+      if (ts && ts[i+3] >= 128) continue;                                   // 浸水想定区域内
+      const gx = x * 256 + px - cgx, gy = y * 256 + py - cgy, d = gx * gx + gy * gy;
+      if (d < bd) { bd = d; bx = x * 256 + px + .5; by = y * 256 + py + .5; }
+    }
+  }
+  return bd === Infinity ? null : pixelToLatLon(bx, by, z);
+}
+
+async function checkEscape(lat, lon){
   const p = {lat, lon};
-  let best = all[0], bd = dist(p, best);
-  for (const s of all) { const d = dist(p, s); if (d < bd) { bd = d; best = s; } }
-  $("evacName").textContent = best.name;
-  $("evacMeta").textContent = `${dirName(p, best)}へ ${bd < 1000 ? Math.round(bd) + " m" : (bd/1000).toFixed(1) + " km"}`;
-  $("evacRoute").href = `https://maps.apple.com/?daddr=${best.lat},${best.lon}&dirflg=w`;
-  $("evacRoute").hidden = false;
-  $("evacWarn").hidden = bd <= 1000;
-  if (nearMark) evacLayer.removeLayer(nearMark);
-  nearMark = L.circleMarker([best.lat, best.lon], {radius:9, color:"#fff", weight:2.5, fillColor:"#2e7d4f", fillOpacity:1})
-    .bindPopup("最寄り：" + best.name).addTo(evacLayer);
+  routeLayer.clearLayers();
+  // 地震：横須賀市の震災時避難所と、国土地理院の指定緊急避難場所（地震）から最寄り
+  const quake = closest(p, [...await loadYokosuka(), ...await shelterTilesAround("skhb04", lat, lon, "#3b6fd6")]);
+  if (quake) {
+    $("eqName").textContent = quake.s.name;
+    $("eqMeta").textContent = `${dirName(p, quake.s)}へ ${fmtDist(quake.d)}`;
+    $("eqRoute").href = walkUrl(quake.s); $("eqRoute").hidden = false;
+    $("eqWarn").hidden = quake.d <= 1500;
+  } else {
+    $("eqName").textContent = "近くに登録された避難所が見つかりません";
+    $("eqMeta").textContent = ""; $("eqRoute").hidden = true; $("eqWarn").hidden = false;
+  }
+
+  // 津波：区域外なら案内だけ、区域内なら区域の外までの最短方向
+  if (!inTsunami) {
+    $("tsuName").textContent = "いまの場所は浸水想定区域の外です";
+    $("tsuMeta").textContent = "揺れを感じて海の近くにいたら、より高い所へ";
+    $("tsuRoute").hidden = true;
+    return;
+  }
+  $("tsuName").textContent = "区域の外を探しています…";
+  const [out, tsuSites] = await Promise.all([
+    nearestOutsideTsunami(lat, lon).catch(() => null),
+    shelterTilesAround("skhb05", lat, lon, "#2e7d4f")
+  ]);
+  const site = closest(p, tsuSites);
+  const siteLine = site && site.d <= 1000 ? `近くの津波避難場所（登録分）：${site.s.name} ${fmtDist(site.d)}` : "";
+  if (!out) {
+    $("tsuName").textContent = "半径約2km以内に区域の外が見つかりません";
+    $("tsuMeta").textContent = siteLine || "高い建物の上階へ。自治体の津波避難ビルを確認してください";
+    $("tsuRoute").hidden = true;
+    return;
+  }
+  const d = dist(p, out);
+  $("tsuName").textContent = d < 20 ? "すぐそばが区域の境目です" : `${dirName(p, out)}へ ${fmtDist(d)} で区域の外`;
+  $("tsuMeta").textContent = siteLine || "境目ぎりぎりで止まらず、さらに高い所へ";
+  $("tsuRoute").href = walkUrl(out); $("tsuRoute").hidden = d < 20;
+  L.polyline([[lat, lon], [out.lat, out.lon]], {color:"#c62828", weight:3, dashArray:"6 6", interactive:false}).addTo(routeLayer);
+  L.circleMarker([out.lat, out.lon], {radius:7, color:"#fff", weight:2.5, fillColor:"#c62828", fillOpacity:1})
+    .bindPopup("浸水想定区域の外（最短の点）").addTo(routeLayer);
 }
 
 /* ---------- 位置の追跡 ---------- */
@@ -339,7 +522,11 @@ async function refresh(pos){
   if (busy) { pending = pos; return; }
   busy = true; lastChecked = pos;
   $("portal").href = `https://disaportal.gsi.go.jp/maps/?ll=${pos.lat.toFixed(6)},${pos.lon.toFixed(6)}&z=16&base=pale&vs=c1j0l0u0`;
-  await Promise.all([checkHazards(pos.lat, pos.lon), checkElev(pos.lat, pos.lon), checkEvac(pos.lat, pos.lon)]);
+  await Promise.all([
+    checkHazards(pos.lat, pos.lon).then(() => checkEscape(pos.lat, pos.lon)),
+    checkGround(pos.lat, pos.lon),
+    checkElev(pos.lat, pos.lon)
+  ]).catch(() => {});
   busy = false;
   if (pending) { const p = pending; pending = null; if (dist(p, lastChecked) > 15) refresh(p); }
 }
@@ -386,9 +573,14 @@ try{ wasTracking = localStorage.getItem("tracking") === "1"; }catch(e){}
 if (wasTracking) start();
 
 /* ---------- 凡例 ---------- */
-$("legend").innerHTML = DEPTH.map(d => `<span><i style="background:${rgbCss(d)}"></i>浸水 ${d[3]}</span>`).join("")
-  + SED.map(d => `<span><i style="background:${rgbCss(d)}"></i>土砂 ${d[3]}</span>`).join("")
-  + `<span><i style="background:#2e7d4f;border-radius:50%"></i>津波避難場所</span>`;
+const sw = (c, label, round) => `<span><i style="background:${rgbCss(c)}${round ? ";border-radius:50%" : ""}"></i>${label}</span>`;
+$("legend").innerHTML =
+  "<b>浸水の深さ（津波・洪水・高潮）</b>" + DEPTH.map(d => sw(d, d[3])).join("") +
+  "<b>土砂災害</b>" + SED.map(d => sw(d, d[3])).join("") +
+  "<b>揺れやすさ（地盤増幅率）</b>" + SHAKE.map((s, i) => sw(s[3], `${s[1]}：${i ? SHAKE[i-1][0].toFixed(1) + "倍〜" : ""}${s[0] === Infinity ? "" : s[0].toFixed(1) + "倍未満"}`)).join("") +
+  "<b>液状化の発生傾向</b>" + LIQ.map(d => sw(d, `${d[3]}：${d[4]}`)).join("") +
+  "<b>大規模盛土造成地</b>" + FILL.map(d => sw(d, d[3])).join("") +
+  "<b>逃げる先</b>" + sw([200,40,40], "区域の外（最短の点）", true) + sw([59,111,214], "地震の避難所", true) + sw([46,125,79], "津波避難場所（登録分）", true);
 </script>
 </body>
 </html>
